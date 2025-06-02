@@ -142,6 +142,51 @@ class InstanceSegmentationModel:
         video_writer.release()
         self._release_video_resources()
 
+    def white_background_mask_generation(self, selected_ids: List[str]) -> None:
+        """
+        为指定跟踪ID生成带有白色背景的掩码视频和帧图像。
+
+        参数:
+            selected_ids (List[str]): 需要生成掩码的跟踪ID列表（例如，['person 1']）。
+
+        输出:
+            - 保存带有白色背景的掩码视频到 output_video_path/white_background_mask.mp4
+            - 保存带有白色背景的掩码帧到 output_video_path/frames_white_mask/*.png
+
+        异常:
+            ValueError: 如果未运行 instance_segmentation 或 selected_ids 无效。
+            AssertionError: 如果视频文件无法打开。
+        """
+        if not self.track_id_dict:
+            raise ValueError("请先运行 instance_segmentation 以生成 track_id_dict。")
+
+        self._initialize_video_capture()
+        frames_output_dir = os.path.join(self.output_video_path, "frames_white_mask")
+        os.makedirs(frames_output_dir, exist_ok=True)
+        video_writer = self._create_video_writer("white_background_mask.mp4")
+
+        for frame_idx, result in enumerate(self.results):
+            # 初始化白色背景帧
+            white_frame = np.full_like(result["frame"], 255, dtype=np.uint8)
+
+            if result["masks"]:
+                for cls, track_id, mask in zip(result["classes"], result["track_ids"], result["masks"]):
+                    target_id = self.track_id_dict.get(track_id)
+                    if target_id in selected_ids:
+                        mask_points = mask.astype(np.int32).reshape(-1, 1, 2)
+                        # 创建掩码图像
+                        mask_image = np.zeros_like(result["frame"], dtype=np.uint8)
+                        cv2.fillPoly(mask_image, [mask_points], (255, 255, 255), cv2.LINE_AA)
+                        # 将原视频内容复制到白色背景帧的掩码区域
+                        white_frame = np.where(mask_image == 255, result["frame"], white_frame)
+
+            video_writer.write(white_frame)
+            frame_filename = os.path.join(frames_output_dir, f"{frame_idx:05d}.png")
+            cv2.imwrite(frame_filename, white_frame)
+
+        video_writer.release()
+        self._release_video_resources()
+
     def mask_generation(self, selected_ids: List[str]) -> None:
         """
         为指定跟踪ID生成黑白掩码视频和帧图像。
@@ -193,4 +238,4 @@ if __name__ == "__main__":
         output_video_path="output",
     )
     model.instance_segmentation()
-    model.mask_generation(selected_ids=["person 1"])
+    model.white_background_mask_generation(selected_ids=["person 1"])
