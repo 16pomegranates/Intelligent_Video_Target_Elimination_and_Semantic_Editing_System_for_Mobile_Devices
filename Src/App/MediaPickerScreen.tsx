@@ -20,7 +20,7 @@ import { useLanguage } from './context/LanguageContext';
 
 // API配置
 const API_CONFIG = {
-  BASE_URL: 'http://192.168.74.174:8000',
+  BASE_URL: 'http://139.224.33.240:8000',
   ENDPOINTS: {
     UPLOAD_VIDEO: '/upload-video',
   }
@@ -199,14 +199,14 @@ const MediaPickerScreen: React.FC = () => {
         ) : (
           <View style={styles.actionButtonContainer}>
             <TouchableOpacity
-              style={[styles.globalButton, { backgroundColor: 'rgb(120,121,241)' }]}
+              style={[styles.globalButton, {backgroundColor: 'rgb(120,121,241)'}]}
               onPress={handleEditPress}
               activeOpacity={0.8}
             >
               <Text style={styles.globalButtonLabel}>{getLocalizedText('编辑', 'Edit')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.globalButton, { backgroundColor: '#B0B0B0' }]}
+              style={[styles.globalButton, {backgroundColor: '#B0B0B0'}]}
               onPress={handleClearMedia}
               activeOpacity={0.8}
             >

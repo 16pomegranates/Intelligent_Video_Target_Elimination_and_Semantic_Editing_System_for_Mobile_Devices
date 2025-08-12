@@ -8,6 +8,7 @@ export interface Persona {
   tag: string;
   progress: number;
   createdAt: string;
+  instruction?: string;
 }
 
 const PERSONA_STORAGE_KEY = 'user_personas';

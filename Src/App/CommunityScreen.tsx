@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLanguage } from './context/LanguageContext'; // Assuming context is available
+import { PersonaManager } from './utils/personaManager';
+import { builtInPresets, buildInstructionFromPreset } from './utils/personaPresets';
+import { getFeaturedPersonas, getPersonaDisplayMeta } from './utils/personaDisplay';
 
 const { width } = Dimensions.get('window');
 
@@ -26,70 +29,65 @@ const getRelativeFontSize = (percentage: number) => {
 const CommunityScreen: React.FC = ({ navigation }: any) => {
   const { currentLanguage } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('全部'); // Default to '全部'
+  const [selectedCategory, setSelectedCategory] = useState('全部'); // 默认中文标签
 
   const getLocalizedText = (zhText: string, enText: string) => {
     return currentLanguage === 'zh' ? zhText : enText;
   };
 
+  // 简化分类（固定少量高层次标签）
   const categories = [
     { zh: '全部', en: 'All' },
-    { zh: '搞笑', en: 'Funny' },
-    { zh: '抒情', en: 'Lyrical' },
-    { zh: '毒舌', en: 'Sarcastic' },
-    { zh: '理性', en: 'Rational' },
+    { zh: '娱乐', en: 'Entertainment' },
+    { zh: '叙事', en: 'Narrative' },
+    { zh: '专业', en: 'Professional' },
   ];
 
-  const dummyCards = [
-    {
-      id: '1',
-      title: getLocalizedText('搞笑弹幕', 'Funny Bullet Comments'),
-      author: getLocalizedText('张三', 'Zhang San'),
-      downloads: '1.2k',
-      description: getLocalizedText('一个充满网络梗的幽默风格，适合短视频爆笑场景。', 'A humorous style full of internet memes, suitable for short video hilarious scenes.'),
-      image: require('../Images/Community/show.png'),
-    },
-    {
-      id: '2',
-      title: getLocalizedText('抒情风格', 'Lyrical Style'),
-      author: getLocalizedText('李四', 'Li Si'),
-      downloads: '856',
-      description: getLocalizedText('温柔细腻的抒情风格，适合情感类短视频内容。', 'Gentle and delicate lyrical style, suitable for emotional short video content.'),
-      image: require('../Images/Community/show.png'),
-    },
-    {
-      id: '3',
-      title: getLocalizedText('毒舌评论', 'Sarcastic Comments'),
-      author: getLocalizedText('王五', 'Wang Wu'),
-      downloads: '2.1k',
-      description: getLocalizedText('犀利幽默的毒舌风格，让评论更有趣味性。', 'Sharp and humorous sarcastic style, making comments more interesting.'),
-      image: require('../Images/Community/show.png'),
-    },
-    {
-      id: '4',
-      title: getLocalizedText('理性分析', 'Rational Analysis'),
-      author: getLocalizedText('赵六', 'Zhao Liu'),
-      downloads: '634',
-      description: getLocalizedText('客观理性的分析风格，适合知识类内容。', 'Objective and rational analysis style, suitable for knowledge-based content.'),
-      image: require('../Images/Community/show.png'),
-    },
-    {
-      id: '5',
-      title: getLocalizedText('网络热梗', 'Internet Memes'),
-      author: getLocalizedText('小明', 'Xiao Ming'),
-      downloads: '3.5k',
-      description: getLocalizedText('结合最新网络热梗的幽默风格，紧跟潮流。', 'Humorous style combining the latest internet memes, keeping up with trends.'),
-      image: require('../Images/Community/show.png'),
-    },
-    {
-      id: '6',
-      title: getLocalizedText('经典怀旧', 'Classic Nostalgia'),
-      author: getLocalizedText('小红', 'Xiao Hong'),
-      downloads: '1.8k',
-      description: getLocalizedText('充满怀旧情怀的经典风格，唤起美好回忆。', 'Classic style full of nostalgic feelings, evoking beautiful memories.'),
-      image: require('../Images/Community/show.png'),
-    },
-  ];
+  const mapTagToSimplifiedCategory = (tag: string): '娱乐' | '叙事' | '专业' => {
+    // 允许模糊归类
+    if (['搞笑', '电竞', '运动'].includes(tag)) return '娱乐';
+    if (['温柔', '生活', '风光'].includes(tag)) return '叙事';
+    if (['理性', '数码', '资讯', '大片'].includes(tag)) return '专业';
+    return '叙事';
+  };
+
+  const cardsFromPresets = getFeaturedPersonas().map(p => ({
+    id: p.id,
+    title: p.name,
+    author: getPersonaDisplayMeta(p.id).author,
+    downloads: getPersonaDisplayMeta(p.id).downloads,
+    description: p.description,
+    image: getPersonaDisplayMeta(p.id).coverImage,
+    tag: p.tag,
+    simpleCategory: mapTagToSimplifiedCategory(p.tag),
+  }));
+
+  const handleDownloadPreset = async (presetId: string) => {
+    const preset = builtInPresets.find(p => p.id === presetId) || builtInPresets[0];
+    const instruction = buildInstructionFromPreset(preset.name, preset.stylePreset);
+    await PersonaManager.addPersona({
+      id: Date.now().toString(),
+      name: preset.name,
+      description: getLocalizedText('来自社区的风格预设', 'Style preset from community'),
+      imageUri: '',
+      tag: preset.tag,
+      progress: 0.8,
+      createdAt: new Date().toISOString(),
+      instruction,
+    });
+  };
+
+  const filteredCards = cardsFromPresets.filter(card => {
+    const byCategory = selectedCategory === '全部' ? true : card.simpleCategory === selectedCategory;
+    if (!byCategory) return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      card.title.toLowerCase().includes(q) ||
+      card.description.toLowerCase().includes(q) ||
+      String(card.author).toLowerCase().includes(q)
+    );
+  });
 
   return (
     <ImageBackground
@@ -141,7 +139,7 @@ const CommunityScreen: React.FC = ({ navigation }: any) => {
       </ScrollView>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {dummyCards.map((card) => (
+        {filteredCards.map((card) => (
           <TouchableOpacity
             key={card.id}
             style={styles.card}
@@ -159,7 +157,7 @@ const CommunityScreen: React.FC = ({ navigation }: any) => {
                   {getLocalizedText('作者：', 'Author: ')}{card.author}  {getLocalizedText('下载：', 'Downloads: ')}{card.downloads}
                 </Text>
                 <Text style={styles.cardDescription}>{card.description}</Text>
-                <TouchableOpacity style={styles.downloadButton}>
+                <TouchableOpacity style={styles.downloadButton} onPress={() => handleDownloadPreset(card.id)}>
                   <Text style={styles.downloadButtonText}>{getLocalizedText('下载', 'Download')}</Text>
                   <Image source={require('../Images/Community/download.png')} style={styles.downloadIcon} />
                 </TouchableOpacity>

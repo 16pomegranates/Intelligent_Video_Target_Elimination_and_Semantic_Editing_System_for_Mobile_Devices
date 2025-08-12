@@ -5,39 +5,32 @@ import {
   StyleSheet,
   Image,
   Dimensions,
-  StatusBar,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  useColorScheme,
   Alert,
   ImageBackground,
   Keyboard,
   PermissionsAndroid,
-  Linking,
-  Permission,
 } from 'react-native';
 import Video, { VideoRef } from 'react-native-video';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import ChatScreen from './components/ChatScreen';
 import RNFS from 'react-native-fs';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import { checkStoragePermissions, requestStoragePermissions } from './utils/permissionManager';
-import { saveDraftVideo, DraftVideo } from './utils/draftVideoManager';
+import { saveDraftVideo } from './utils/draftVideoManager';
 import { useFocusEffect } from '@react-navigation/native';
+import { PersonaManager } from './utils/personaManager';
 import { useLanguage } from './context/LanguageContext';
 
 // API配置
 const API_CONFIG = {
-  BASE_URL: 'http://192.168.74.174:8000',
+  BASE_URL: 'http://139.224.33.240:8000',
   ENDPOINTS: {
     PROCESS_VIDEO: '/process-video',
     CHECK_FILE: '/check-file'
   }
 };
-
-const audioRecorderPlayer = new AudioRecorderPlayer();
 
 interface RouteParams {
   mediaUri: string;
@@ -63,31 +56,13 @@ interface VideoError {
   target?: number;
 }
 
-interface ProcessVideoResponse {
-  status: string;
-  message: string;
-  result: string;
-  output_path?: string;
-}
-
 const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
   const { mediaUri: initialMediaUri, isVideo } = route.params;
-  const isDarkMode = useColorScheme() === 'dark';
-  const [textInput, setTextInput] = useState<string>('');
-  const [isRecordingMode, setIsRecordingMode] = useState<boolean>(false);
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  // const _isDarkMode = useColorScheme() === 'dark';
   const [isPlaying, setIsPlaying] = useState(true);
-  const [videoRenderedHeight, setVideoRenderedHeight] = useState(0);
   const videoRef = useRef<VideoRef>(null);
   const [videoPath, setVideoPath] = useState<string>(initialMediaUri);
   const [currentMediaUri, setCurrentMediaUri] = useState<string>(initialMediaUri);
-  const [processedVideos, setProcessedVideos] = useState<Array<{
-    path: string;
-    timestamp: number;
-  }>>([]);
   const [currentProcessedVideo, setCurrentProcessedVideo] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -102,16 +77,13 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
     onDiscard?: () => Promise<void>;
     onPreview?: () => void;
   }>>([]);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [previewVideoPath, setPreviewVideoPath] = useState<string | null>(null);
-  const [localSavedPath, setLocalSavedPath] = useState<string | null>(null);
-  const [hasStoragePermission, setHasStoragePermission] = useState(false);
   const { currentLanguage } = useLanguage();
+  const [lastAppliedInstruction, setLastAppliedInstruction] = useState<string | null>(null);
 
   // 辅助函数：根据当前语言获取文本
-  const getLocalizedText = (zhText: string, enText: string) => {
+  const getLocalizedText = useCallback((zhText: string, enText: string) => {
     return currentLanguage === 'zh' ? zhText : enText;
-  };
+  }, [currentLanguage]);
 
   // 新增：自动保存草稿的函数
   const autoSaveDraft = useCallback(async () => {
@@ -131,7 +103,7 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
         console.error('临时草稿视频自动保存失败。');
       }
     }
-  }, [currentProcessedVideo]);
+  }, [currentProcessedVideo, getLocalizedText]);
 
   // 使用 useFocusEffect 在屏幕失去焦点时触发自动保存
   useFocusEffect(
@@ -151,18 +123,14 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
 
   // 检查权限状态
   useEffect(() => {
-    const checkPermissions = async () => {
-      const hasPermission = await checkStoragePermissions();
-      setHasStoragePermission(hasPermission);
-    };
-    checkPermissions();
+    // 仅在 Android 上确保权限，iOS 默认允许
+    checkStoragePermissions();
   }, []);
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       () => {
-        setKeyboardVisible(true);
         // 当键盘显示时隐藏底部导航栏
         navigation.getParent()?.setOptions({
           tabBarStyle: { display: 'none' }
@@ -172,7 +140,6 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
     const keyboardWillHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
-        setKeyboardVisible(false);
         // 当键盘隐藏时显示底部导航栏
         navigation.getParent()?.setOptions({
           tabBarStyle: {
@@ -200,30 +167,8 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
     };
   }, [navigation]);
 
-  const toggleInputMode = () => {
-    setIsRecordingMode(!isRecordingMode);
-  };
-
-  const handleVideoLoad = (data: any) => {
-    setDuration(data.duration);
-  };
-
-  const handleProgress = (data: any) => {
-    setCurrentTime(data.currentTime);
-  };
-
-  const handleSelectTime = (time: number) => {
-    // Implementation needed
-  };
-
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-  };
-
-  const handleMediaLayout = (event: any) => {
-    const { height } = event.nativeEvent.layout;
-    setVideoRenderedHeight(height);
-  };
+  // 保留占位，避免未来需求时大改
+  const handleMediaLayout = () => {};
 
   const checkAndUploadVideo = async (uri: string): Promise<boolean> => {
     if (!uri) {
@@ -434,32 +379,7 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  const handlePreviewVideo = () => {
-    console.log('预览按钮被点击');
-    console.log('处理后的视频路径:', currentProcessedVideo);
-    if (currentProcessedVideo) {
-      console.log('切换到处理后的视频');
-      setVideoPath(currentProcessedVideo);
-      setIsPlaying(true); // 确保视频开始播放
-    }
-  };
-
-  const handleDiscardPreview = async () => {
-    console.log('放弃按钮被点击');
-    // 恢复原始视频
-    setVideoPath(initialMediaUri);
-    setIsPlaying(true);
-    // 如果有临时文件，删除它
-    if (currentProcessedVideo) {
-      try {
-        await RNFS.unlink(currentProcessedVideo);
-        console.log('临时文件删除成功');
-        setCurrentProcessedVideo(null);
-      } catch (error) {
-        console.error('删除临时文件失败:', error);
-      }
-    }
-  };
+  // 预览/放弃逻辑现已通过消息卡片入口触发选择版本，无需单独按钮
 
   const handleExportVideo = async () => {
     if (!videoPath) {
@@ -502,12 +422,7 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleProcessedVideo = async (localPath: string) => {
-    // 将新处理的视频添加到列表中
-    const newVideo = {
-      path: localPath,
-      timestamp: Date.now()
-    };
-    setProcessedVideos(prev => [...prev, newVideo]);
+    // 记录当前处理结果路径
     setCurrentProcessedVideo(localPath);
 
     // 添加消息
@@ -611,115 +526,84 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   // 修改保存和放弃的处理函数
-  const handleSaveVideo = async () => {
-    console.log('保存按钮被点击');
-    if (!currentProcessedVideo) {
-      console.error('没有处理后的视频可保存');
-      Alert.alert(getLocalizedText('错误', 'Error'), getLocalizedText('没有可保存的视频', 'No video to save'));
-      return;
-    }
+  // 保存逻辑已内置在导出与草稿保存流程中
 
-    try {
-      console.log('开始保存视频:', currentProcessedVideo);
-
-      // 检查权限
-      const hasPermission = await requestStoragePermissions();
-      if (!hasPermission) {
-        throw new Error(getLocalizedText('需要存储权限才能保存视频', 'Storage permission required to save video'));
-      }
-
-      // 确保文件路径格式正确
-      let filePath = currentProcessedVideo;
-      if (!filePath.startsWith('file://')) {
-        filePath = 'file://' + (filePath.startsWith('/') ? filePath : '/' + filePath);
-      }
-
-      console.log('准备保存的文件路径:', filePath);
-
-      // 检查文件是否存在
-      const fileExists = await RNFS.exists(filePath.replace('file://', ''));
-      if (!fileExists) {
-        throw new Error('视频文件不存在');
-      }
-
-      // 使用CameraRoll保存到相册
-      await CameraRoll.save(filePath, {
-        type: 'video',
-        album: 'ClipPersona'
-      });
-
-      console.log('视频成功保存到相册');
-
-      // 新增：保存到草稿
-      const draftName = getLocalizedText(`剪辑草稿_${new Date().toLocaleDateString()}_${new Date().toLocaleTimeString()}`, `EditedDraft_${new Date().toLocaleDateString()}_${new Date().toLocaleTimeString()}`);
-      const savedDraft = await saveDraftVideo({
-        name: draftName,
-        path: filePath, // saveDraftVideo 会处理文件复制和前缀
-      });
-
-      if (savedDraft) {
-        console.log('视频成功保存到草稿:', savedDraft.path);
-        // 添加成功消息
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: getLocalizedText(`视频已成功保存到相册和草稿 (${savedDraft.name})`, `Video successfully saved to album and drafts (${savedDraft.name})`),
-          isUser: false,
-          type: 'text'
-        }]);
-      } else {
-        console.error('视频保存到草稿失败。');
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: getLocalizedText('视频已成功保存到相册，但保存到草稿失败。', 'Video successfully saved to album, but failed to save to drafts.'),
-          isUser: false,
-          type: 'text'
-        }]);
-      }
-
-      Alert.alert(getLocalizedText('成功', 'Success'), getLocalizedText('视频已保存到相册', 'Video saved to album'));
-
-      // 清理临时文件
-      try {
-        // 在保存到相册并存储为草稿后，删除临时文件
-        await RNFS.unlink(filePath.replace('file://', ''));
-        console.log('临时文件删除成功');
-        setCurrentProcessedVideo(null); // 清除当前处理中的视频状态
-      } catch (error) {
-        console.error('删除临时文件失败:', error);
-      }
-    } catch (error: any) {
-      console.error('保存视频失败:', error);
-      Alert.alert(getLocalizedText('错误', 'Error'), getLocalizedText(`保存视频失败: ${error.message}`, `Video save failed: ${error.message}`));
-    }
-  };
-
-  const handleDiscardChanges = async () => {
-    if (localSavedPath) {
-      try {
-        // 删除临时文件
-        await RNFS.unlink(localSavedPath);
-      } catch (error) {
-        console.error('删除临时文件失败:', error);
-      }
-    }
-    setPreviewVideoPath(null);
-    setLocalSavedPath(null);
-
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      text: getLocalizedText('已放弃修改', 'Changes discarded'),
-      isUser: false,
-      type: 'text'
-    }]);
-  };
+  // 放弃修改逻辑已由聊天消息操作控制
 
   // 添加导出按钮组件
   const ExportButton = () => (
+    <TouchableOpacity style={[styles.toolbarButton, styles.btnExport]} onPress={handleExportVideo}>
+      <Text style={styles.toolbarButtonText}>{getLocalizedText('导出', 'Export')}</Text>
+    </TouchableOpacity>
+  );
+
+  const PersonaButton = () => (
     <TouchableOpacity
-      style={styles.exportButton}
-      onPress={handleExportVideo}
+      style={[styles.toolbarButton, styles.btnPersona]}
+      onPress={() => {
+        navigation.navigate('SelectPersona', {
+          onApply: (instruction: string) => {
+            setLastAppliedInstruction(instruction);
+            const match = instruction.match(/使用风格:\s*([^；\n]+)/);
+            const name = match ? match[1] : getLocalizedText('已应用风格', 'Style Applied');
+            setMessages(prev => [
+              ...prev,
+              {
+                id: Date.now().toString(),
+                text: getLocalizedText(`已应用Persona: ${name}`, `Applied Persona: ${name}`),
+                isUser: false,
+                type: 'text',
+              },
+            ]);
+            handleNaturalLanguageCommand(instruction);
+          },
+        });
+      }}
     >
-      <Text style={styles.exportButtonText}>{getLocalizedText('导出', 'Export')}</Text>
+      <Text style={styles.toolbarButtonText}>{getLocalizedText('Persona', 'Persona')}</Text>
+    </TouchableOpacity>
+  );
+
+  const SavePersonaButton = () => (
+    <TouchableOpacity
+      style={[styles.toolbarButton, styles.btnSave]}
+      onPress={async () => {
+        try {
+          const instruction = lastAppliedInstruction || '';
+          const nameMatch = instruction ? instruction.match(/使用风格:\s*([^；\n]+)/) : null;
+          const name = nameMatch ? nameMatch[1] : getLocalizedText('我的Persona', 'My Persona');
+          const description = instruction ? instruction.slice(0, 120) : getLocalizedText('从当前剪辑偏好生成', 'Generated from current editing preference');
+          const newPersona = {
+            id: Date.now().toString(),
+            name,
+            description,
+            imageUri: '',
+            tag: getLocalizedText('自定义', 'Custom'),
+            progress: 0.8,
+            createdAt: new Date().toISOString(),
+            instruction,
+          };
+          const ok = await PersonaManager.addPersona(newPersona as any);
+          if (ok) {
+            setMessages(prev => [
+              ...prev,
+              {
+                id: (Date.now() + 1).toString(),
+                text: getLocalizedText('已保存为Persona', 'Saved as Persona'),
+                isUser: false,
+                type: 'text',
+              },
+            ]);
+            Alert.alert(getLocalizedText('成功', 'Success'), getLocalizedText('Persona 已保存', 'Persona saved'));
+          } else {
+            Alert.alert(getLocalizedText('错误', 'Error'), getLocalizedText('保存Persona失败', 'Failed to save Persona'));
+          }
+        } catch (e: any) {
+          Alert.alert(getLocalizedText('错误', 'Error'), e.message || getLocalizedText('保存Persona失败', 'Failed to save Persona'));
+        }
+      }}
+    >
+      <Text style={styles.toolbarButtonText}>{getLocalizedText('存为Persona', 'Save Persona')}</Text>
     </TouchableOpacity>
   );
 
@@ -740,7 +624,11 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.videoContainer}>
-          <ExportButton />
+          <View style={styles.topToolbar}>
+            <SavePersonaButton />
+            <PersonaButton />
+            <ExportButton />
+          </View>
           <ImageBackground
             source={require('../Images/EditMediaScreen/show_video.png')}
             style={styles.videoFrame}
@@ -754,8 +642,7 @@ const EditMediaScreen: React.FC<Props> = ({ route, navigation }) => {
                 style={styles.video}
                 resizeMode="contain"
                 controls={true}
-                onLoad={handleVideoLoad}
-                onProgress={handleProgress}
+                // 可按需添加 onLoad / onProgress
                 onLayout={handleMediaLayout}
                 onError={handleVideoError}
                 paused={!isPlaying || isProcessing}
@@ -850,21 +737,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  exportButton: {
+  topToolbar: {
     position: 'absolute',
-    marginTop: 40,
     top: -150,
-    right: 10,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 15,
+    width: width,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    zIndex: 2,
+  },
+  toolbarButton: {
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    zIndex: 1,
+    marginHorizontal: 6,
   },
-  exportButtonText: {
+  btnExport: { backgroundColor: '#4CAF50' },
+  btnPersona: { backgroundColor: '#6A5ACD' },
+  btnSave: { backgroundColor: '#FF9800' },
+  toolbarButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   headerTitleWrapper: {
     width: '100%',
