@@ -33,7 +33,7 @@ export const saveDraftVideo = async (video: Omit<DraftVideo, 'id' | 'timestamp'>
 
     // 将视频从临时路径移动到草稿目录
     await RNFS.copyFile(video.path.replace('file://', ''), newPath);
-
+    
     let thumbnailPath: string | undefined;
     try {
       const thumbnailUrl = `file://${newPath}`;
@@ -51,7 +51,7 @@ export const saveDraftVideo = async (video: Omit<DraftVideo, 'id' | 'timestamp'>
     } catch (thumbError: any) {
       console.error('生成缩略图失败:', thumbError.message, thumbError.stack);
     }
-
+    
     const draftVideo: DraftVideo = {
       id,
       name: video.name,
@@ -94,7 +94,7 @@ export const loadDraftVideos = async (): Promise<DraftVideo[]> => {
         // 对于不带 file:// 前缀的旧路径，也检查一下并移除
         const fileExists = await RNFS.exists(video.path);
         if (fileExists) {
-          validVideos.push({ ...video, path: `file://${video.path}` }); // 自动添加前缀
+           validVideos.push({ ...video, path: `file://${video.path}` }); // 自动添加前缀
         } else {
           console.warn(`草稿视频文件不存在（旧路径），将从列表中移除: ${video.path}`);
         }
@@ -137,7 +137,7 @@ export const deleteDraftVideo = async (id: string): Promise<boolean> => {
           console.warn(`尝试删除不存在的草稿视频文件 (旧路径): ${videoToDelete.path}`);
         }
       }
-
+      
       // 同时删除缩略图文件（如果存在）
       if (videoToDelete.thumbnailPath) {
         const thumbFilePath = videoToDelete.thumbnailPath.replace('file://', '');
@@ -149,7 +149,7 @@ export const deleteDraftVideo = async (id: string): Promise<boolean> => {
           console.warn(`尝试删除不存在的草稿视频缩略图文件: ${thumbFilePath}`);
         }
       }
-
+      
       // 从 AsyncStorage 删除记录
       storedVideos = storedVideos.filter(video => video.id !== id);
       await AsyncStorage.setItem(DRAFT_VIDEOS_KEY, JSON.stringify(storedVideos));

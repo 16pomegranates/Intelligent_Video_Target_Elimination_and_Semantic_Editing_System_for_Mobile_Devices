@@ -15,6 +15,8 @@ import {
   Easing,
 } from 'react-native';
 import { loadDraftVideos, deleteDraftVideo, DraftVideo } from './utils/draftVideoManager'; // 导入草稿视频管理函数和接口
+import { getFeaturedPersonas, getPersonaDisplayMeta } from './utils/personaDisplay';
+import { builtInPresets } from './utils/personaPresets';
 import { useFocusEffect } from '@react-navigation/native'; // 导入 useFocusEffect
 import { useLanguage } from './context/LanguageContext'; // 导入 useLanguage
 import { useUser } from './context/UserContext'; // 导入 useUser
@@ -30,24 +32,11 @@ const getRelativeFontSize = (percentage: number) => {
   return Math.round((width * percentage) / 100);
 };
 
-// 推荐风格卡片的模拟数据
-const recommendedStyleCards = [
-  {
-    id: 'rec1',
-    title: '搞笑弹幕',
-    image: require('../Images/HomePage/card1.png'),
-  },
-  {
-    id: 'rec2',
-    title: '抒情浪漫',
-    image: require('../Images/HomePage/card1.png'), // 假设有更多不同的卡片图片，这里暂用同一个
-  },
-  {
-    id: 'rec3',
-    title: '搞笑弹幕',
-    image: require('../Images/HomePage/card1.png'),
-  },
-];
+const recommendedStyleCards = getFeaturedPersonas().map(p => ({
+  id: p.id,
+  title: p.name,
+  image: getPersonaDisplayMeta(p.id).coverImage,
+}));
 
 const HomeScreen: React.FC = ({ navigation }: any) => {
   const [draftVideos, setDraftVideos] = useState<DraftVideo[]>([]);
@@ -214,23 +203,7 @@ const HomeScreen: React.FC = ({ navigation }: any) => {
           </View>
         </View>
 
-        {/* 当前Persona */}
-        <View style={styles.draftsSectionWrapper}>
-          <View style={styles.sectionTitleContainer}>
-            <Image source={require('../Images/HomePage/instruct.png')} style={styles.sectionTitleIcon} />
-            <Text style={styles.sectionTitle}>{getLocalizedText('当前Persona', 'Current Persona')}</Text>
-          </View>
-          {/* 根据是否有草稿视频显示内容 */}
-          {draftVideos.length === 0 ? (
-            <Text style={styles.noDraftText}>{getLocalizedText('当前无Persona', 'No current Persona')}</Text>
-          ) : (
-            <Image
-              source={require('../Images/HomePage/robot.png')}
-              style={styles.robotDecoration}
-              resizeMode="contain"
-            />
-          )}
-        </View>
+        {/* 当前Persona UI已移除，Persona 仅在编辑页调用 */}
 
         {/* 推荐风格卡 */}
         <View style={styles.draftsSectionWrapper}>
